@@ -6,6 +6,8 @@ import path from 'path';
 import ExifReader from 'exifreader';
 import { createMeal, getMealsByDate } from '@/lib/db';
 import { analyzeFood, categorizeMealByTime } from '@/lib/analyze-food';
+import convert from 'heic-convert';
+import sharp from 'sharp';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -41,7 +43,27 @@ export async function POST(request: NextRequest) {
     }
 
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    let buffer = Buffer.from(bytes);
+    
+    // Convert HEIC to JPEG if needed
+    const fileName = file.name.toLowerCase();
+    if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) {
+      console.log('Converting HEIC to JPEG...');
+      const jpegBuffer = await convert({
+        buffer: buffer,
+        format: 'JPEG',
+        quality: 0.9
+      });
+      buffer = Buffer.from(jpegBuffer);
+    }
+    
+    // Ensure image is in a compatible format and reasonable size
+    const processedImage = await sharp(buffer)
+      .jpeg({ quality: 85 })
+      .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+      .toBuffer();
+    
+    buffer = processedImage;
     const base64 = buffer.toString('base64');
 
     // Parse EXIF data for timestamp
@@ -71,10 +93,9 @@ export async function POST(request: NextRequest) {
       console.log('No EXIF data found, using current time');
     }
 
-    // Save file
+    // Save file (always as JPEG since we converted)
     const id = uuidv4();
-    const ext = file.name.split('.').pop() || 'jpg';
-    const filename = `${id}.${ext}`;
+    const filename = `${id}.jpg`;
     const filePath = path.join(uploadsDir, filename);
     fs.writeFileSync(filePath, buffer);
 
