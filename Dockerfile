@@ -5,10 +5,14 @@ RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 
 COPY . .
+
+# Ensure public directory exists
+RUN mkdir -p public/uploads
+
 RUN npm run build
 
 # Production stage
@@ -24,13 +28,10 @@ ENV PORT=3000
 # Create data directory for SQLite and uploads
 RUN mkdir -p /data/uploads
 
+# Copy built assets
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-
-# Reinstall better-sqlite3 for production
-COPY package.json ./
-RUN npm install better-sqlite3 --build-from-source
 
 EXPOSE 3000
 
