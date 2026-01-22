@@ -103,8 +103,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(meal);
   } catch (error) {
     console.error('Error processing meal:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to process meal' },
+      { error: 'Failed to process meal', details: errorMessage },
       { status: 500 }
     );
   }
