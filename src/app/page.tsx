@@ -21,9 +21,9 @@ interface Meal {
 const MEAL_ORDER = ['Breakfast', 'Lunch', 'Dinner', 'Snack'] as const;
 
 export default function Home() {
-  // Default to 2 days ago
+  // Default to today (user's local time)
   const [currentDate, setCurrentDate] = useState(() => 
-    format(subDays(new Date(), 2), 'yyyy-MM-dd')
+    format(new Date(), 'yyyy-MM-dd')
   );
   const [meals, setMeals] = useState<Meal[]>([]);
   const [loading, setLoading] = useState(true);
