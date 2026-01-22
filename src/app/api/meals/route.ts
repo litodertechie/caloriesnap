@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
     
     const formData = await request.formData();
     const file = formData.get('photo') as File | null;
+    const clientTimestamp = formData.get('timestamp') as string | null;
+    const clientTimezone = formData.get('timezone') as string | null;
     
     if (!file) {
       return NextResponse.json({ error: 'No photo provided' }, { status: 400 });
@@ -66,31 +68,39 @@ export async function POST(request: NextRequest) {
     buffer = processedImage;
     const base64 = buffer.toString('base64');
 
-    // Parse EXIF data for timestamp
+    // Determine photo timestamp
     let photoDate = new Date();
     let photoTakenAt: string | null = null;
     
-    try {
-      const tags = ExifReader.load(buffer);
-      const dateTimeOriginal = tags['DateTimeOriginal']?.description;
-      
-      if (dateTimeOriginal) {
-        // EXIF format: "2024:01:15 12:30:45"
-        const [datePart, timePart] = dateTimeOriginal.split(' ');
-        const [year, month, day] = datePart.split(':');
-        const [hour, minute, second] = timePart.split(':');
-        photoDate = new Date(
-          parseInt(year),
-          parseInt(month) - 1,
-          parseInt(day),
-          parseInt(hour),
-          parseInt(minute),
-          parseInt(second)
-        );
-        photoTakenAt = photoDate.toISOString();
+    // Priority 1: Client-provided timestamp (from iOS Shortcut)
+    if (clientTimestamp) {
+      photoDate = new Date(clientTimestamp);
+      photoTakenAt = photoDate.toISOString();
+      console.log('Using client timestamp:', clientTimestamp);
+    } else {
+      // Priority 2: Try EXIF data
+      try {
+        const tags = ExifReader.load(buffer);
+        const dateTimeOriginal = tags['DateTimeOriginal']?.description;
+        
+        if (dateTimeOriginal) {
+          // EXIF format: "2024:01:15 12:30:45"
+          const [datePart, timePart] = dateTimeOriginal.split(' ');
+          const [year, month, day] = datePart.split(':');
+          const [hour, minute, second] = timePart.split(':');
+          photoDate = new Date(
+            parseInt(year),
+            parseInt(month) - 1,
+            parseInt(day),
+            parseInt(hour),
+            parseInt(minute),
+            parseInt(second)
+          );
+          photoTakenAt = photoDate.toISOString();
+        }
+      } catch (e) {
+        console.log('No EXIF data found, using current time');
       }
-    } catch (e) {
-      console.log('No EXIF data found, using current time');
     }
 
     // Save file (always as JPEG since we converted)
