@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('photo') as File | null;
     const clientTimestamp = formData.get('timestamp') as string | null;
-    const clientTimezone = formData.get('timezone') as string | null;
+    const clientHour = formData.get('hour') as string | null; // Local hour (0-23)
     
     if (!file) {
       return NextResponse.json({ error: 'No photo provided' }, { status: 400 });
@@ -112,8 +112,18 @@ export async function POST(request: NextRequest) {
     // Analyze food with OpenAI Vision
     const analysis = await analyzeFood(base64);
 
-    // Categorize meal by time
-    const mealType = categorizeMealByTime(photoDate);
+    // Categorize meal by time (use client hour if provided for correct timezone)
+    let mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack';
+    if (clientHour) {
+      const hour = parseInt(clientHour);
+      if (hour >= 5 && hour < 10) mealType = 'Breakfast';
+      else if (hour >= 11 && hour < 14) mealType = 'Lunch';
+      else if (hour >= 17 && hour < 21) mealType = 'Dinner';
+      else mealType = 'Snack';
+      console.log('Using client hour for categorization:', hour, '→', mealType);
+    } else {
+      mealType = categorizeMealByTime(photoDate);
+    }
     const dateStr = format(photoDate, 'yyyy-MM-dd');
 
     // Create meal record
