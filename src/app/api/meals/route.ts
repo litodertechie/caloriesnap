@@ -47,25 +47,39 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     let buffer = Buffer.from(bytes);
     
+    console.log('Received file:', file.name, 'size:', buffer.length, 'type:', file.type);
+    
     // Convert HEIC to JPEG if needed
     const fileName = file.name.toLowerCase();
     if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) {
       console.log('Converting HEIC to JPEG...');
-      const jpegBuffer = await convert({
-        buffer: buffer,
-        format: 'JPEG',
-        quality: 0.9
-      });
-      buffer = Buffer.from(jpegBuffer);
+      try {
+        const jpegBuffer = await convert({
+          buffer: buffer,
+          format: 'JPEG',
+          quality: 0.9
+        });
+        buffer = Buffer.from(jpegBuffer);
+      } catch (heicError) {
+        console.error('HEIC conversion failed:', heicError);
+        // Continue with original buffer, sharp might handle it
+      }
     }
     
-    // Ensure image is in a compatible format and reasonable size
-    const processedImage = await sharp(buffer)
-      .jpeg({ quality: 85 })
-      .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-      .toBuffer();
+    // Try to process with sharp, but fall back to original if it fails
+    try {
+      const processedImage = await sharp(buffer)
+        .jpeg({ quality: 85 })
+        .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+        .toBuffer();
+      buffer = processedImage;
+    } catch (sharpError) {
+      console.error('Sharp processing failed:', sharpError);
+      // If sharp fails, just use the original buffer
+      // This happens when iOS Shortcut already converted/resized
+      console.log('Using original buffer without sharp processing');
+    }
     
-    buffer = processedImage;
     const base64 = buffer.toString('base64');
 
     // Determine photo timestamp
